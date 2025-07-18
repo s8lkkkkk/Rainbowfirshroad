@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MSXLV Link Shortener</title>
+<style>
+  /* Fullscreen canvas for animated background */
+  #backgroundCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    background-color: #121212;
+    display: block;
+  }
+
+  body, html {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #eee;
+  }
+
+  /* Center container on top */
+  .container {
+    position: relative;
+    z-index: 1;
+    background-color: rgba(30, 30, 30, 0.9); /* Slight transparency for background */
+    padding: 30px 40px;
+    border-radius: 16px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.6);
+    width: 400px;
+    margin: 0 auto;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+  }
+
+  h1 {
+    margin-bottom: 24px;
+    font-weight: 700;
+  }
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    text-align: left;
+  }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    background-color: #2c2c2c;
+    color: #eee;
+    box-sizing: border-box;
+    transition: background-color 0.3s ease;
+  }
+  select:hover, input[type="text"]:hover,
+  select:focus, input[type="text"]:focus {
+    background-color: #3a3a3a;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(90deg, #ff0000, #b30000);
+    color: white;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  button:hover {
+    background: linear-gradient(90deg, #b30000, #ff0000);
+  }
+  #result {
+    margin-top: 24px;
+    background-color: #2c2c2c;
+    padding: 15px 20px;
+    border-radius: 14px;
+    word-break: break-word;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #shortlink {
+    color: #ff4c4c;
+    text-decoration: none;
+    word-break: break-all;
+    flex-grow: 1;
+  }
+  #copyBtn {
+    margin-left: 10px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    border: none;
+    background-color: #ff4c4c;
+    color: #121212;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #copyBtn:hover {
+    background-color: #cc3b3b;
+  }
+</style>
+</head>
+<body>
+  <canvas id="backgroundCanvas"></canvas>
+
+  <div class="container">
+    <h1>MSXLV Link Shortener</h1>
+    <label for="service">Choose a link shortener service:</label>
+    <select id="service">
+      <option value="isgd">is.gd</option>
+      <option value="vgd">v.gd</option>
+      <option value="dagd">da.gd</option>
+    </select>
+
+    <label for="longurl">Paste your long URL here:</label>
+    <input type="text" id="longurl" placeholder="https://example.com/very/long/url" />
+
+    <button onclick="generateShortLink()">Generate Shortened Link</button>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+  // URL shortening code (same as before)
+  async function generateShortLink() {
+    const service = document.getElementById('service').value;
+    let longUrl = document.getElementById('longurl').value.trim();
+    const resultDiv = document.getElementById('result');
+    resultDiv.textContent = '';
+
+    if (!longUrl) {
+      resultDiv.textContent = 'Please enter a valid URL.';
+      return;
+    }
+
+    try {
+      new URL(longUrl);
+    } catch {
+      resultDiv.textContent = 'Invalid URL format.';
+      return;
+    }
+
+    let apiUrl = '';
+    let isPlainText = false;
+
+    if (service === 'isgd') {
+      apiUrl = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+    } else if (service === 'vgd') {
+      apiUrl = `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+    } else if (service === 'dagd') {
+      apiUrl = `https://da.gd/s?url=${encodeURIComponent(longUrl)}`;
+      isPlainText = true;
+    } else {
+      resultDiv.textContent = 'Unsupported service.';
+      return;
+    }
+
+    try {
+      const response = await fetch(apiUrl);
+      if (!response.ok) throw new Error('Network error');
+
+      let shortUrl;
+      if (isPlainText) {
+        shortUrl = await response.text();
+        if (!shortUrl.startsWith('http')) {
+          throw new Error('Invalid response from da.gd');
+        }
+      } else {
+        const data = await response.json();
+        if (data.errorcode) {
+          throw new Error(data.errormessage);
+        }
+        shortUrl = data.shorturl;
+      }
+
+      resultDiv.innerHTML = `
+        <a id="shortlink" href="${shortUrl}" target="_blank" rel="noopener">${shortUrl}</a>
+        <button id="copyBtn" title="Copy to clipboard">Copy</button>
+      `;
+
+      document.getElementById('copyBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(shortUrl).then(() => {
+          alert('Copied to clipboard!');
+        });
+      });
+    } catch (error) {
+      resultDiv.textContent = 'Failed to shorten URL: ' + error.message;
+    }
+  }
+
+  // Animated background: floating glowing dots
+  const canvas = document.getElementById('backgroundCanvas');
+  const ctx = canvas.getContext('2d');
+  let width, height;
+  let dots = [];
+
+  class Dot {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * width;
+      this.y = Math.random() * height;
+      this.radius = 1 + Math.random() * 2;
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.speedY = (Math.random() - 0.5) * 0.3;
+      this.alpha = 0.1 + Math.random() * 0.4;
+      this.alphaChange = 0.005 * (Math.random() > 0.5 ? 1 : -1);
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      this.alpha += this.alphaChange;
+      if (this.alpha <= 0.1 || this.alpha >= 0.5) this.alphaChange = -this.alphaChange;
+
+      // Wrap around edges
+      if (this.x < 0) this.x = width;
+      else if (this.x > width) this.x = 0;
+      if (this.y < 0) this.y = height;
+      else if (this.y > height) this.y = 0;
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius*3);
+      gradient.addColorStop(0, `rgba(255, 0, 0, ${this.alpha})`);
+      gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.arc(this.x, this.y, this.radius*3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255, 0, 0, ${this.alpha})`;
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function init() {
+    resize();
+    dots = [];
+    const dotsCount = Math.floor((width * height) / 8000);
+    for (let i = 0; i < dotsCount; i++) {
+      dots.push(new Dot());
+    }
+    animate();
+  }
+
+  function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+    dots.forEach(dot => {
+      dot.update();
+      dot.draw(ctx);
+    });
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', () => {
+    resize();
+    init();
+  });
+
+  init();
+</script>
+</body>
+</html>
